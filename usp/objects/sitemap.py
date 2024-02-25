@@ -28,7 +28,7 @@ class AbstractSitemap(object, metaclass=abc.ABCMeta):
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, AbstractSitemap):
-            raise NotImplemented
+            raise NotImplementedError
 
         if self.url != other.url:
             return False
@@ -85,7 +85,7 @@ class InvalidSitemap(AbstractSitemap):
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, InvalidSitemap):
-            raise NotImplemented
+            raise NotImplementedError
 
         if self.url != other.url:
             return False
@@ -146,7 +146,7 @@ class AbstractPagesSitemap(AbstractSitemap, metaclass=abc.ABCMeta):
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, AbstractPagesSitemap):
-            raise NotImplemented
+            raise NotImplementedError
 
         if self.url != other.url:
             return False
@@ -234,7 +234,7 @@ class AbstractIndexSitemap(AbstractSitemap):
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, AbstractIndexSitemap):
-            raise NotImplemented
+            raise NotImplementedError
 
         if self.url != other.url:
             return False

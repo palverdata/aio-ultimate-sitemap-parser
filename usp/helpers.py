@@ -57,7 +57,7 @@ def is_http_url(url: str) -> bool:
     if not uri.scheme:
         log.debug("Scheme is undefined for URL {}.".format(url))
         return False
-    if not uri.scheme.lower() in ['http', 'https']:
+    if uri.scheme.lower() not in ['http', 'https']:
         log.debug("Scheme is not HTTP(s) for URL {}.".format(url))
         return False
     if not uri.hostname:

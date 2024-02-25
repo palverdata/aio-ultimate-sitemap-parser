@@ -246,7 +246,7 @@ class SitemapPage(object):
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, SitemapPage):
-            raise NotImplemented
+            raise NotImplementedError
 
         if self.url != other.url:
             return False

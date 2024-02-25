@@ -1,6 +1,7 @@
 """Sitemap fetchers and parsers."""
 
 import abc
+import asyncio
 import re
 import xml.parsers.expat
 from collections import OrderedDict
@@ -279,6 +280,15 @@ class PlainTextSitemapParser(AbstractSitemapParser):
         pages = []
         for page_url in story_urls.keys():
             page = SitemapPage(url=page_url)
+
+            if (
+                cutoff_date
+                and hasattr(page, "last_modified")
+                and page.last_modified
+                and page.last_modified < cutoff_date
+            ):
+                continue
+
             pages.append(page)
 
         text_sitemap = PagesTextSitemap(url=self._url, pages=pages)
@@ -322,7 +332,7 @@ class XMLSitemapParser(AbstractSitemapParser):
 
         try:
             is_final = True
-            parser.Parse(self._content, is_final)
+            await asyncio.to_thread(parser.Parse, self._content, is_final)
         except Exception as ex:
             # Some sitemap XML files might end abruptly because webservers might be timing out on returning huge XML
             # files so don't return InvalidSitemap() but try to get as much pages as possible
@@ -927,6 +937,7 @@ class PagesRSSSitemapParser(AbstractXMLSitemapParser):
             if page:
                 if (
                     cutoff_date
+                    and hasattr(page, "publication_date")
                     and page.publication_date
                     and page.publication_date < cutoff_date
                 ):

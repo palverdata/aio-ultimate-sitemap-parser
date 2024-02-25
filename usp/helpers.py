@@ -1,5 +1,6 @@
 """Helper utilities."""
 
+import asyncio
 import datetime
 import gzip
 import gzip as gzip_lib
@@ -177,7 +178,7 @@ async def async_get_url_retry_on_client_errors(
     assert retry_count > 0, "Retry count must be positive."
 
     response = None
-    for retry in range(0, retry_count):
+    for _ in range(0, retry_count):
         log.info("Fetching URL {}...".format(url))
         response = await web_client.get(url)
 
@@ -190,7 +191,7 @@ async def async_get_url_retry_on_client_errors(
                         url, sleep_between_retries
                     )
                 )
-                time.sleep(sleep_between_retries)
+                await asyncio.sleep(sleep_between_retries)
 
             else:
                 log.info("Not retrying for URL {}".format(url))

@@ -13,7 +13,7 @@ from .objects.sitemap import (
     IndexWebsiteSitemap,
     InvalidSitemap,
 )
-from .web_client.abstract_client import AbstractWebClient
+from .web_client.abstract_client import AsyncAbstractWebClient as AbstractWebClient
 
 log = create_logger(__name__)
 
@@ -36,7 +36,7 @@ _UNPUBLISHED_SITEMAP_PATHS = {
 """Paths which are not exposed in robots.txt but might still contain a sitemap."""
 
 
-def sitemap_tree_for_homepage(
+async def sitemap_tree_for_homepage(
     homepage_url: str,
     web_client: Optional[AbstractWebClient] = None,
     cutoff_date: Optional[datetime] = None,
@@ -70,7 +70,7 @@ def sitemap_tree_for_homepage(
     robots_txt_fetcher = SitemapFetcher(
         url=robots_txt_url, web_client=web_client, recursion_level=0
     )
-    robots_txt_sitemap = robots_txt_fetcher.sitemap(cutoff_date=cutoff_date)
+    robots_txt_sitemap = await robots_txt_fetcher.sitemap(cutoff_date=cutoff_date)
     sitemaps.append(robots_txt_sitemap)
 
     sitemap_urls_found_in_robots_txt = set()
@@ -101,7 +101,7 @@ def sitemap_tree_for_homepage(
                 web_client=web_client,
                 recursion_level=0,
             )
-            unpublished_sitemap = unpublished_sitemap_fetcher.sitemap(
+            unpublished_sitemap = await unpublished_sitemap_fetcher.sitemap(
                 cutoff_date=cutoff_date
             )
 

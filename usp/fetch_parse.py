@@ -12,12 +12,12 @@ from usp.util.url import extract_year_month_from_sitemap
 
 from .exceptions import SitemapException, SitemapXMLParsingException
 from .helpers import (
-    get_url_retry_on_client_errors,
+    async_get_url_retry_on_client_errors,
+    async_ungzipped_response_content,
     html_unescape_strip,
     is_http_url,
     parse_iso8601_date,
     parse_rfc2822_date,
-    ungzipped_response_content,
 )
 from .log import create_logger
 from .objects.page import (
@@ -37,11 +37,12 @@ from .objects.sitemap import (
     PagesXMLSitemap,
 )
 from .web_client.abstract_client import (
-    AbstractWebClient,
     AbstractWebClientSuccessResponse,
     WebClientErrorResponse,
 )
-from .web_client.requests_client import RequestsWebClient
+from .web_client.abstract_client import (
+    AsyncAbstractWebClient as AbstractWebClient,
+)
 
 log = create_logger(__name__)
 
@@ -80,7 +81,7 @@ class SitemapFetcher(object):
             raise SitemapException("URL {} is not a HTTP(s) URL.".format(url))
 
         if not web_client:
-            web_client = RequestsWebClient()
+            raise ValueError("Web client is not set.")
 
         web_client.set_max_response_data_length(self.__MAX_SITEMAP_SIZE)
 
@@ -88,7 +89,7 @@ class SitemapFetcher(object):
         self._web_client = web_client
         self._recursion_level = recursion_level
 
-    def sitemap(
+    async def sitemap(
         self,
         cutoff_date: Optional[datetime] = None,
     ) -> AbstractSitemap:
@@ -97,7 +98,7 @@ class SitemapFetcher(object):
                 self._recursion_level, self._url
             )
         )
-        response = get_url_retry_on_client_errors(
+        response = await async_get_url_retry_on_client_errors(
             url=self._url, web_client=self._web_client
         )
 
@@ -111,7 +112,9 @@ class SitemapFetcher(object):
 
         assert isinstance(response, AbstractWebClientSuccessResponse)
 
-        response_content = ungzipped_response_content(url=self._url, response=response)
+        response_content = await async_ungzipped_response_content(
+            url=self._url, response=response
+        )
 
         # MIME types returned in Content-Type are unpredictable, so peek into the content instead
         if response_content[:20].strip().startswith("<"):
@@ -141,7 +144,7 @@ class SitemapFetcher(object):
                 )
 
         log.info("Parsing sitemap from URL {}...".format(self._url))
-        sitemap = parser.sitemap(cutoff_date=cutoff_date)
+        sitemap = await parser.sitemap(cutoff_date=cutoff_date)
 
         return sitemap
 
@@ -169,7 +172,7 @@ class AbstractSitemapParser(object, metaclass=abc.ABCMeta):
         self._web_client = web_client
 
     @abc.abstractmethod
-    def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
+    async def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
         raise NotImplementedError("Abstract method.")
 
 
@@ -195,7 +198,7 @@ class IndexRobotsTxtSitemapParser(AbstractSitemapParser):
                 "URL does not look like robots.txt URL: {}".format(self._url)
             )
 
-    def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
+    async def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
         # Serves as an ordered set because we want to deduplicate URLs but also retain the order
         sitemap_urls = OrderedDict()
 
@@ -248,7 +251,7 @@ class IndexRobotsTxtSitemapParser(AbstractSitemapParser):
                 recursion_level=self._recursion_level,
                 web_client=self._web_client,
             )
-            fetched_sitemap = fetcher.sitemap(cutoff_date=cutoff_date)
+            fetched_sitemap = await fetcher.sitemap(cutoff_date=cutoff_date)
             sub_sitemaps.append(fetched_sitemap)
 
         index_sitemap = IndexRobotsTxtSitemap(url=self._url, sub_sitemaps=sub_sitemaps)
@@ -259,7 +262,7 @@ class IndexRobotsTxtSitemapParser(AbstractSitemapParser):
 class PlainTextSitemapParser(AbstractSitemapParser):
     """Plain text sitemap parser."""
 
-    def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
+    async def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
         story_urls = OrderedDict()
 
         for story_url in self._content.splitlines():
@@ -309,7 +312,7 @@ class XMLSitemapParser(AbstractSitemapParser):
         # Will be initialized when the type of sitemap is known
         self._concrete_parser = None
 
-    def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
+    async def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
         parser = xml.parsers.expat.ParserCreate(
             namespace_separator=self.__XML_NAMESPACE_SEPARATOR
         )
@@ -331,7 +334,7 @@ class XMLSitemapParser(AbstractSitemapParser):
                 reason="No parsers support sitemap from {}".format(self._url),
             )
 
-        return self._concrete_parser.sitemap(cutoff_date=cutoff_date)
+        return await self._concrete_parser.sitemap(cutoff_date=cutoff_date)
 
     @classmethod
     def __normalize_xml_element_name(cls, name: str):
@@ -467,7 +470,7 @@ class AbstractXMLSitemapParser(object, metaclass=abc.ABCMeta):
         self._last_handler_call_was_xml_char_data = True
 
     @abc.abstractmethod
-    def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
+    async def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
         raise NotImplementedError("Abstract method.")
 
 
@@ -504,7 +507,7 @@ class IndexXMLSitemapParser(AbstractXMLSitemapParser):
 
         super().xml_element_end(name=name)
 
-    def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
+    async def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
         sub_sitemaps = []
 
         for sub_sitemap_url in self._sub_sitemap_urls:
@@ -534,7 +537,7 @@ class IndexXMLSitemapParser(AbstractXMLSitemapParser):
                     recursion_level=self._recursion_level + 1,
                     web_client=self._web_client,
                 )
-                fetched_sitemap = fetcher.sitemap(cutoff_date=cutoff_date)
+                fetched_sitemap = await fetcher.sitemap(cutoff_date=cutoff_date)
             except Exception as ex:
                 fetched_sitemap = InvalidSitemap(
                     url=sub_sitemap_url,
@@ -779,7 +782,7 @@ class PagesXMLSitemapParser(AbstractXMLSitemapParser):
 
         super().xml_element_end(name=name)
 
-    def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
+    async def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
         pages = []
 
         for page_row in self._pages:
@@ -916,7 +919,7 @@ class PagesRSSSitemapParser(AbstractXMLSitemapParser):
 
         super().xml_element_end(name=name)
 
-    def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
+    async def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
         pages = []
 
         for page_row in self._pages:
@@ -1070,7 +1073,7 @@ class PagesAtomSitemapParser(AbstractXMLSitemapParser):
 
         super().xml_element_end(name=name)
 
-    def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
+    async def sitemap(self, cutoff_date: Optional[datetime] = None) -> AbstractSitemap:
         pages = []
 
         for page_row in self._pages:

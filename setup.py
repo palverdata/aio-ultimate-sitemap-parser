@@ -19,7 +19,7 @@ setup(
     long_description_content_type="text/x-rst",  # Assuming README.rst is reStructuredText
     author="Linas Valiukas, Hal Roberts",
     author_email="linas@media.mit.edu, hroberts@cyber.law.harvard.edu",
-    url="https://github.com/mediacloud/ultimate-sitemap-parser",
+    url="https://github.com/palverdata/aio-ultimate-sitemap-parser",
     license="GPLv3+",
     keywords=["sitemap", "sitemap-xml", "parser"],
     packages=find_packages(exclude=["tests"]),
